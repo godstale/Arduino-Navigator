@@ -10,6 +10,11 @@ public class Constants {
     // Preference
 	public static final String PREFERENCE_NAME = "BTCTemplatePref";
 	public static final String PREFERENCE_KEY_BG_SERVICE = "BackgroundService";
+	public static final String PREFERENCE_KEY_UNIT_TYPE = "UnitType";
+	public static final String PREFERENCE_KEY_NAVI_MODE = "NaviMode";
+	public static final String PREFERENCE_KEY_DEST_LATITUDE = "DestLat";
+	public static final String PREFERENCE_KEY_DEST_LONGITUDE = "DestLng";
+	
 	public static final String PREFERENCE_CONN_INFO_ADDRESS = "device_address";
 	public static final String PREFERENCE_CONN_INFO_NAME = "device_name";
 	

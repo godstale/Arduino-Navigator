@@ -8,29 +8,61 @@
         android:id="@+id/pager"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginBottom="24dip"
+        android:layout_marginBottom="66dip"
         tools:context=".MainActivity" />
     
     
-    <!-- status bar : display connection info -->
     <LinearLayout 
         android:layout_width="match_parent"
-        android:layout_height="26dip"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         style="@style/AppTheme.ConnectionInfoContainer" >
-        <ImageView 
-            android:id="@+id/status_title"
-            android:layout_width="wrap_content"
-            android:layout_height="20dip"
-            android:layout_margin="3dip"
-            />
-        <TextView 
-            android:id="@+id/status_text"
-            android:layout_width="match_parent"
-            android:layout_height="20dip"
-            android:layout_margin="3dip"
-            style="@style/AppTheme.ConnectionInfoText" />
+
+	    <!-- Destination -->
+	    <LinearLayout 
+	        android:layout_width="match_parent"
+	        android:layout_height="40dip"
+	        android:orientation="horizontal"
+	        style="@style/AppTheme.ConnectionInfoContainer" >
+	        <TextView 
+	            android:id="@+id/status_navi_info"
+	            android:layout_width="0dip"
+	            android:layout_height="40dip"
+	            android:layout_margin="3dip"
+	            android:layout_weight="1"
+	            style="@style/AppTheme.ConnectionInfoText" />
+		    <Button 
+		        android:id="@+id/btn_mode"
+		        android:layout_width="60dip"
+	    		android:layout_height="30dip"
+	    		android:text="@string/title_unit_meter"
+	    		style="@style/AppTheme.FormButton" />
+	    </LinearLayout>
+	    
+	    <!-- BT status bar : display connection info -->
+	    <LinearLayout 
+	        android:layout_width="match_parent"
+	        android:layout_height="26dip"
+	        android:layout_gravity="bottom"
+	        android:orientation="horizontal"
+	        style="@style/AppTheme.ConnectionInfoContainer" >
+	        <ImageView 
+	            android:id="@+id/status_title"
+	            android:layout_width="wrap_content"
+	            android:layout_height="20dip"
+	            android:layout_margin="3dip"
+	            />
+	        <TextView 
+	            android:id="@+id/status_text"
+	            android:layout_width="match_parent"
+	            android:layout_height="20dip"
+	            android:layout_margin="3dip"
+	            style="@style/AppTheme.ConnectionInfoText" />
+	    </LinearLayout>
+        
     </LinearLayout>
+    
+
     
 </FrameLayout>

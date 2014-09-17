@@ -18,12 +18,18 @@ package com.hardcopy.arduinonavi.views;
 
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
+import com.hardcopy.arduinonavi.controller.GMapControl;
 
 import android.content.Context;
 import android.os.Handler;
 
 
-
+/**
+ * 
+ * WARNING: Do not use this
+ * For future use
+ *
+ */
 public class GMapFragment extends SupportMapFragment {
 
 	private Context mContext = null;

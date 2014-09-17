@@ -13,6 +13,10 @@
     <string name="title_map">Map</string>
     <string name="title_ll_settings">Settings</string>
     
+    <string name="title_destination">Destination</string>
+    <string name="title_unit_meter">m/km</string>
+    <string name="title_unit_feet">feet/mile</string>
+    
     <!--  Bluetooth -->
     <string name="bt_title">Bluetooth</string>
     

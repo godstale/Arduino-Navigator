@@ -19,6 +19,7 @@ package com.hardcopy.arduinonavi.views;
 public interface IFragmentListener {
 	public static final int CALLBACK_RUN_IN_BACKGROUND = 1;
 	public static final int CALLBACK_MAP_CREATED = 101;
+	public static final int CALLBACK_MAP_UPDATE_NAVI_INFO = 102;
 	
 	public void OnFragmentCallback(int msgType, int arg0, int arg1, String arg2, String arg3, Object arg4);
 }

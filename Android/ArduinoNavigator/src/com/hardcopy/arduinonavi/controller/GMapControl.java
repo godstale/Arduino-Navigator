@@ -1,11 +1,9 @@
-package com.hardcopy.arduinonavi.views;
+package com.hardcopy.arduinonavi.controller;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.Point;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.Bundle;
 import android.os.Handler;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -18,6 +16,10 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.hardcopy.arduinonavi.R;
+import com.hardcopy.arduinonavi.contents.NavigationInfo;
+import com.hardcopy.arduinonavi.views.IFragmentListener;
 
 
 public class GMapControl {
@@ -26,18 +28,26 @@ public class GMapControl {
 
 	private static final float INITIAL_ZOOM_LEVEL = 14f;
 	
+	public static final int NAVI_MODE_COMPASS = 1;
+	public static final int NAVI_MODE_DIRECTION = 2;
+	
+	public static final int UNIT_TYPE_METERS = 1;
+	public static final int UNIT_TYPE_KMETERS = 2;
+	public static final int UNIT_TYPE_FEET = 3;
+	public static final int UNIT_TYPE_MILES = 4;
+	
+	
 	// Context, System
 	private Context mContext;
 	private Handler mHandler;
-	private LocationManager mLocationManager;
-	private LocationListenerImpl mLocationListener;
+	private IFragmentListener mFragmentListener = null;
 
 	// Google map
 	private GoogleMap mGoogleMap;
 	private UiSettings mUiSettings;
 	
-	private boolean mLocationServiceEnabled = false;
 	private Location mCurrentLocation;
+	private Location mDestinationLocation;
 	
 	private float mCurrentZoom = 9f;
 	
@@ -48,34 +58,32 @@ public class GMapControl {
 	
 	// Global
 	private boolean mIsInitialized = false;
+	private int mNaviMode = NAVI_MODE_COMPASS;
+	private int mUnitType = UNIT_TYPE_METERS;
+	private NavigationInfo mNaviInfo = null;
 	
 	
 	/*****************************************************
 	*		Initialization methods
 	******************************************************/
 	
-	public GMapControl(Context c, Handler h, GoogleMap gmap, int screenSizeX, int screenSizeY) {
+	public GMapControl(Context c, Handler h, IFragmentListener l, GoogleMap gmap, int screenSizeX, int screenSizeY) {
 		mContext = c;
 		mHandler = h;
+		mFragmentListener = l;
 		mGoogleMap = gmap;
 		mScreenW = screenSizeX;
 		mScreenH = screenSizeY;
+		mNaviInfo = NavigationInfo.getInstance(mContext);
 		
 		initialize();
 	}
 
 	
 	private void initialize() {
-		initLocationManager();
 		initMap();
 	}
 	
-	private void initLocationManager() {
-		mLocationManager = (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
-		mLocationListener = new LocationListenerImpl();
-		mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener);
-		mLocationServiceEnabled = true;
-	}
 	
 	private void initMap() {
 		if(mGoogleMap != null) {
@@ -109,15 +117,28 @@ public class GMapControl {
 		mGoogleMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
 			@Override
 			public void onMapClick(LatLng latLng) {
-				MarkerOptions markerOptions = new MarkerOptions();
-				//markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.map_icon01));
-				markerOptions.title("Destination");
-				markerOptions.position(latLng);
+				if(mDestinationLocation == null || mCurrentLocation == null)
+					return;
 				
-				mGoogleMap.clear();
-				mGoogleMap.animateCamera(CameraUpdateFactory.newLatLng(latLng));
-				mGoogleMap.addMarker(markerOptions);
+				mDestinationLocation.setLatitude(latLng.latitude);
+				mDestinationLocation.setLongitude(latLng.longitude);
+				mNaviInfo.setDestLocation(latLng);
 
+				mGoogleMap.clear();
+				
+				drawDestination(latLng);
+				
+				StringBuilder sb = new StringBuilder();
+				sb.append(mNaviMode==NAVI_MODE_COMPASS?"compass":"direction");
+				sb.append(",");
+				sb.append(mUnitType==UNIT_TYPE_METERS?"meters":"feet");
+				if(mCurrentLocation != null) {
+					mFragmentListener.OnFragmentCallback(IFragmentListener.CALLBACK_MAP_UPDATE_NAVI_INFO, 
+							(int)mNaviInfo.getDistance(), (int)mNaviInfo.getAngle(),
+							String.format("%.3f", mDestinationLocation.getLatitude()), 
+							String.format("%.3f", mDestinationLocation.getLongitude()), 
+							sb.toString()); 
+				}
 			}
 		});
 		mGoogleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
@@ -142,19 +163,44 @@ public class GMapControl {
 		mGoogleMap.setOnMyLocationChangeListener(new OnMyLocationChangeListener() {
 			@Override
 			public void onMyLocationChange(Location loc) {
-				float zoomLevel = mCurrentZoom; 
+				float zoomLevel = mCurrentZoom;
 				mCurrentLocation = loc;
+				
+				if(mDestinationLocation == null) {
+					mDestinationLocation = new Location(loc);	// Destination is not selected yet. Initialize destination
+					mNaviInfo.initDestLocation(mDestinationLocation);
+					// If there is pre-used destination, show it on map 
+					if(mNaviInfo.getDestLatitude() != 0 && mNaviInfo.getDestLongitude() != 0) {
+						drawDestination(new LatLng(mNaviInfo.getDestLatitude(), mNaviInfo.getDestLongitude()));
+					}
+				} else {
+					mNaviInfo.setCurLocation(loc);
+				}
 				
 				if(!mIsInitialized) {
 					zoomLevel = INITIAL_ZOOM_LEVEL;
 					mIsInitialized = true;
+				} else {
+					zoomLevel = 0;
 				}
 				
 				addMarkerOnMap(loc.getLatitude(), loc.getLongitude(), 
-						"I'm here", 	// title
+						"I'm here", 		// title
 						loc.getLatitude() + ", " + loc.getLongitude(), 			// snippet
-						false,			// draggable
-						zoomLevel);	// 0 means keep current zoom level
+						false,				// draggable
+						MARKER_DEFAULT, 	// marker
+						zoomLevel);			// 0 means keep current zoom level
+				
+				
+				StringBuilder sb = new StringBuilder();
+				sb.append(mNaviMode==NAVI_MODE_COMPASS?"compass":"direction");
+				sb.append(",");
+				sb.append(mUnitType==UNIT_TYPE_METERS?"meters":"feet");
+				mFragmentListener.OnFragmentCallback(IFragmentListener.CALLBACK_MAP_UPDATE_NAVI_INFO,
+						(int)mNaviInfo.getDistance(), (int)mNaviInfo.getAngle(),
+						String.format("%.3f", mDestinationLocation.getLatitude()), 
+						String.format("%.3f", mDestinationLocation.getLongitude()), 
+						sb.toString());
 			}
 		});
 	}
@@ -168,29 +214,18 @@ public class GMapControl {
 		});
 	}
 	
-	private double calcDistance(double lat1, double lon1, double lat2, double lon2) {
-		double EARTH_R, Rad, radLat1, radLat2, radDist; 
-		double distance, ret;
-
-		EARTH_R = 6371000.0;
-		Rad = Math.PI/180;
-		radLat1 = Rad * lat1;
-		radLat2 = Rad * lat2;
-		radDist = Rad * (lon1 - lon2);
-
-		distance = Math.sin(radLat1) * Math.sin(radLat2);
-		distance = distance + Math.cos(radLat1) * Math.cos(radLat2) * Math.cos(radDist);
-		ret = EARTH_R * Math.acos(distance);
-
-		return  Math.round(Math.round(ret) / 1000);
-	}
-	
-	private float calcAngle(double lat1, double lon1, double lat2, double lon2) {
-		float angle = 0;
+	private void drawDestination(LatLng latLng) {
+		if(mCurrentLocation != null) {
+			mGoogleMap.addPolyline(new PolylineOptions()
+					.add(new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude()), latLng)
+					.width(5)
+					.color(Color.RED));
+		}
 		
-		
-		
-		return angle;
+		addMarkerOnMap(latLng.latitude, latLng.longitude, 
+				mContext.getResources().getString(R.string.title_destination), 
+				String.format("%.3f", latLng.latitude) + ", " + String.format("%.3f", latLng.latitude), 
+				true, MARKER_RED, mCurrentZoom);
 	}
 	
 	
@@ -199,18 +234,12 @@ public class GMapControl {
 	*		Public methods
 	******************************************************/
 	
-	public void stopUpdates() {
-		mLocationManager.removeUpdates(mLocationListener);
-		mLocationServiceEnabled = false;
+	public void setNaviMode(int nm) {
+		mNaviMode = nm;
 	}
 	
-	public void resumeUpdates() {
-		mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener);
-		mLocationServiceEnabled = true;
-	}
-	
-	public boolean isLocationServiceEnabled() {
-		return mLocationServiceEnabled;
+	public void setUnitType(int ut) {
+		mUnitType = ut;
 	}
 	
 	public LatLng convertPointToLatLng(Point point) {
@@ -233,19 +262,29 @@ public class GMapControl {
 	}
 	
 	
+	public static final float MARKER_DEFAULT = BitmapDescriptorFactory.HUE_AZURE;	// Blue marker
+	public static final float MARKER_RED = BitmapDescriptorFactory.HUE_RED;
+	public static final float MARKER_GREEN = BitmapDescriptorFactory.HUE_GREEN;
 	
-	public void addMarkerOnMap(double lat1, double long1, String title, String snippet, boolean draggable, float zoomFactor) {
+	public void addMarkerOnMap(double lat1, double long1, String title, String snippet, boolean draggable, float markerType, float zoomFactor) {
+		float markerStyle = MARKER_DEFAULT;
+		if(markerType < 0 || markerType > 360) {
+			// use default marker
+		} else {
+			markerStyle = markerType;
+		}
+		
 		LatLng ll = new LatLng(lat1, long1);		// Lat: -90 ~ 90, Lng: -180 ~ 180
 		mGoogleMap.addMarker(new MarkerOptions()
 								.title(title)
 								.snippet(snippet)
 								.position(ll)
 								.draggable(draggable)
-								.icon( BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE) )
+								.icon( BitmapDescriptorFactory.defaultMarker(markerStyle) )
 							);
 
 		if(zoomFactor < 2.0f || zoomFactor > 21.0f) {
-			mGoogleMap.animateCamera(CameraUpdateFactory.newLatLng(ll));
+			// No camera animation
 		} else {
 			mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(ll, zoomFactor));		// zoom out ~ zoom in : 2.0f ~ 21.0f
 		}
@@ -279,33 +318,6 @@ public class GMapControl {
 	/*****************************************************
 	*		Sub classes
 	******************************************************/
-	
-	/**
-	 * For future use. 
-	 */
-	public class LocationListenerImpl implements LocationListener {
-		@Override
-		public void onLocationChanged(Location location) {
-//			mCurrentLatitude = location.getLatitude();
-//			mCurrentLongitude = location.getLongitude();
-		}
-
-		@Override
-		public void onProviderDisabled(String provider) {
-			// TODO Auto-generated method stub
-		}
-
-		@Override
-		public void onProviderEnabled(String provider) {
-			// TODO Auto-generated method stub
-		}
-
-		@Override
-		public void onStatusChanged(String provider, int status, Bundle extras) {
-			// TODO Auto-generated method stub
-		}
-	}
-	
 	
 	
 }

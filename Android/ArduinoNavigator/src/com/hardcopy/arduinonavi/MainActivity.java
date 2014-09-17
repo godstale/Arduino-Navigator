@@ -20,13 +20,13 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import com.google.android.gms.maps.GoogleMap;
+import com.hardcopy.arduinonavi.controller.GMapControl;
 import com.hardcopy.arduinonavi.service.ArduinoNavigatorService;
 import com.hardcopy.arduinonavi.utils.AppSettings;
 import com.hardcopy.arduinonavi.utils.Constants;
 import com.hardcopy.arduinonavi.utils.Logs;
 import com.hardcopy.arduinonavi.utils.RecycleUtils;
 import com.hardcopy.arduinonavi.views.FragmentAdapter;
-import com.hardcopy.arduinonavi.views.GMapControl;
 import com.hardcopy.arduinonavi.views.IFragmentListener;
 
 import android.app.ActionBar;
@@ -48,11 +48,13 @@ import android.support.v4.view.ViewPager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class MainActivity extends FragmentActivity implements ActionBar.TabListener, IFragmentListener {
+public class MainActivity extends FragmentActivity implements ActionBar.TabListener, IFragmentListener, View.OnClickListener {
 
     // Debugging
     private static final String TAG = "RetroWatchActivity";
@@ -69,6 +71,8 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 	private FragmentAdapter mSectionsPagerAdapter;
 	private ViewPager mViewPager;
 	
+	private TextView mNaviInfo = null;
+	private Button mNaviMode = null;
 	private ImageView mImageBT = null;
 	private TextView mTextStatus = null;
 	
@@ -92,6 +96,7 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 		mContext = this;	//.getApplicationContext();
 		mActivityHandler = new ActivityHandler();
 		AppSettings.initializeAppSettings(mContext);
+		
 		
 		setContentView(R.layout.activity_main);
 
@@ -124,6 +129,18 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 		}
 		
 		// Setup views
+		
+		mNaviInfo = (TextView) findViewById(R.id.status_navi_info);
+		mNaviInfo.setText(getResources().getString(R.string.title_destination) + ": ");
+		mNaviMode = (Button) findViewById(R.id.btn_mode);
+		mNaviMode.setOnClickListener(this);
+		int unitType = AppSettings.getUnitType();
+		if(unitType == GMapControl.UNIT_TYPE_METERS) {
+			mNaviMode.setText(getResources().getString(R.string.title_unit_meter));
+		} else {
+			mNaviMode.setText(getResources().getString(R.string.title_unit_feet));
+		}
+		
 		mImageBT = (ImageView) findViewById(R.id.status_title);
 		mImageBT.setImageDrawable(getResources().getDrawable(android.R.drawable.presence_invisible));
 		mTextStatus = (TextView) findViewById(R.id.status_text);
@@ -226,11 +243,33 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 			
 		case IFragmentListener.CALLBACK_MAP_CREATED:
 			if(arg4 != null) {
-				mMapControl = new GMapControl(mContext, null, (GoogleMap)arg4, arg0, arg1);
+				mMapControl = new GMapControl(mContext, null, this, (GoogleMap)arg4, arg0, arg1);
 			}
+			break;
+			
+		case IFragmentListener.CALLBACK_MAP_UPDATE_NAVI_INFO:
+			showDestination(arg2, arg3, arg0, arg1, (String)arg4);
+			//if(mService != null)
+			//	mService.sendMessageToRemote();
 			break;
 
 		default:
+			break;
+		}
+	}
+	
+	@Override
+	public void onClick(View v) {
+		switch(v.getId()) {
+		case R.id.btn_mode:
+			int unitType = AppSettings.getUnitType();
+			if(unitType == GMapControl.UNIT_TYPE_METERS) {
+				AppSettings.setSettingsValue(AppSettings.SETTINGS_UNIT_TYPE, false, GMapControl.UNIT_TYPE_FEET, 0, null);
+				mNaviMode.setText(getResources().getString(R.string.title_unit_feet));
+			} else {
+				AppSettings.setSettingsValue(AppSettings.SETTINGS_UNIT_TYPE, false, GMapControl.UNIT_TYPE_METERS, 0, null);
+				mNaviMode.setText(getResources().getString(R.string.title_unit_meter));
+			}
 			break;
 		}
 	}
@@ -332,6 +371,38 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 			intent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
 			startActivity(intent);
 		}
+	}
+	
+	private void showDestination(String lat, String lang, int distance, int angle, String options) {
+		mNaviInfo.setText(lat + ", " + lang);
+		
+		int unitType = 0;
+		String strUnit = " meters";
+		if(options.contains("meter")) {
+			unitType = GMapControl.UNIT_TYPE_METERS;
+		} else {
+			unitType = GMapControl.UNIT_TYPE_FEET;
+			strUnit = " feet";
+		}
+		
+		if(unitType == GMapControl.UNIT_TYPE_METERS) {
+			if(distance > 1000) {
+				distance = distance / 1000;
+				unitType = GMapControl.UNIT_TYPE_KMETERS;
+				strUnit = " km";
+			}
+		} else if(unitType == GMapControl.UNIT_TYPE_FEET) {
+			if(distance > 5280) {
+				distance = distance / 5280;		// I assumed that 1 Mile = 5280 Feet.
+				unitType = GMapControl.UNIT_TYPE_MILES;
+				strUnit = " miles";
+			}
+		}
+		
+		mNaviInfo.append("\n"+distance);
+		mNaviInfo.append(strUnit);
+		mNaviInfo.append(", "+angle);
+		mNaviInfo.append("'");
 	}
 	
 	

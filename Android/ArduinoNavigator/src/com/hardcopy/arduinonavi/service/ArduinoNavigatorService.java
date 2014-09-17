@@ -17,8 +17,11 @@
 package com.hardcopy.arduinonavi.service;
 
 import java.util.Timer;
+import java.util.TimerTask;
 
 import com.hardcopy.arduinonavi.bluetooth.*;
+import com.hardcopy.arduinonavi.contents.NavigationInfo;
+import com.hardcopy.arduinonavi.controller.GMapControl;
 import com.hardcopy.arduinonavi.utils.AppSettings;
 import com.hardcopy.arduinonavi.utils.Constants;
 import com.hardcopy.arduinonavi.utils.Logs;
@@ -29,7 +32,11 @@ import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -56,7 +63,16 @@ public class ArduinoNavigatorService extends Service {
 	
 	// Auto-refresh timer
 	private Timer mRefreshTimer = null;
-	private Timer mDeleteTimer = null;
+	
+	// Navigation control
+	private LocationManager mLocationManager;
+	private LocationListenerImpl mLocationListener;
+	private boolean mLocationServiceEnabled;
+	private NavigationInfo mNaviInfo;
+	
+	private Location mCurrentLocation;
+	private Location mDestinationLocation;
+	
     
 	
 	/*****************************************************
@@ -140,19 +156,47 @@ public class ArduinoNavigatorService extends Service {
 				setupBT();
 			}
 		}
+		
+		mNaviInfo = NavigationInfo.getInstance(mContext);
+		initLocationManager();
+		
+		// Send navigation info to remote device periodically
+		mRefreshTimer = new Timer();
+		mRefreshTimer.schedule(new RefreshTimerTask(), 5*1000, 3*1000);
 	}
+	
+	private void initLocationManager() {
+		mLocationManager = (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
+		mLocationListener = new LocationListenerImpl();
+		mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener);
+	}
+	
+	private boolean isLocationServiceEnabled() {
+		return mLocationServiceEnabled;
+	}
+	
+	private void resumeUpdates() {
+		mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener);
+		mLocationServiceEnabled = true;
+	}
+	
+	private void stopLocationUpdates() {
+		mLocationManager.removeUpdates(mLocationListener);
+		mLocationServiceEnabled = false;
+	}
+	
 	
 	/**
 	 * Send message to device.
 	 * @param message		message to send
 	 */
-	private void sendMessageToDevice(String message) {
-		if(message == null || message.length() < 1)
+	private void sendMessageToDevice(int mode, int unitType, int distance, int angle) {
+		if(distance < 0 || angle > 360 || angle < 0)
 			return;
 		
 		TransactionBuilder.Transaction transaction = mTransactionBuilder.makeTransaction();
 		transaction.begin();
-		transaction.setMessage(message);
+		transaction.setMessage(mode, unitType, distance, angle);
 		transaction.settingFinished();
 		transaction.sendTransaction();
 	}
@@ -175,11 +219,7 @@ public class ArduinoNavigatorService extends Service {
 			mRefreshTimer.cancel();
 			mRefreshTimer = null;
 		}
-		if(mDeleteTimer != null) {
-			mDeleteTimer.cancel();
-			mDeleteTimer = null;
-		}
-		
+		stopLocationUpdates();
 	}
 	
 	/**
@@ -283,8 +323,28 @@ public class ArduinoNavigatorService extends Service {
 	/**
 	 * Send message to remote device using Bluetooth
 	 */
-	public void sendMessageToRemote(String message) {
-		sendMessageToDevice(message);
+	public void sendMessageToRemote() {
+		int mode = AppSettings.getNaviMode();
+		int unitType = AppSettings.getUnitType();
+		int distance = (int)mNaviInfo.getDistance();
+		int angle = (int)mNaviInfo.getAngle();
+		
+		if(distance < 0 || angle < 0 || angle > 360)
+			return;
+		
+		if(unitType == GMapControl.UNIT_TYPE_METERS) {
+			if(distance > 1000) {
+				distance = distance / 1000;
+				unitType = GMapControl.UNIT_TYPE_KMETERS;
+			}
+		} else if(unitType == GMapControl.UNIT_TYPE_FEET) {
+			if(distance > 5280) {
+				distance = distance / 5280;		// I assumed that 1 Mile = 5280 Feet.
+				unitType = GMapControl.UNIT_TYPE_MILES;
+			}
+		}
+		
+		sendMessageToDevice(mode, unitType, distance, angle);
 	}
 	
 	/**
@@ -396,6 +456,53 @@ public class ArduinoNavigatorService extends Service {
 			super.handleMessage(msg);
 		}
 	}	// End of class MainHandler
+	
+	
+	
+	public class LocationListenerImpl implements LocationListener {
+		@Override
+		public void onLocationChanged(Location location) {
+			mCurrentLocation = location;
+			if(mNaviInfo != null) {
+				mNaviInfo.setCurLocation(location);
+				if(mDestinationLocation == null) {
+					mNaviInfo.initDestLocation(location);
+					mDestinationLocation = location;
+				}
+			}
+		}
+
+		@Override
+		public void onProviderDisabled(String provider) {
+			// TODO Auto-generated method stub
+		}
+
+		@Override
+		public void onProviderEnabled(String provider) {
+			// TODO Auto-generated method stub
+		}
+
+		@Override
+		public void onStatusChanged(String provider, int status, Bundle extras) {
+			// TODO Auto-generated method stub
+		}
+	}
+	
+	
+    /**
+     * Auto-refresh Timer
+     */
+	private class RefreshTimerTask extends TimerTask {
+		public RefreshTimerTask() {}
+		
+		public void run() {
+			mServiceHandler.post(new Runnable() {
+				public void run() {
+					sendMessageToRemote();
+				}
+			});
+		}
+	}
 	
 	
 	
