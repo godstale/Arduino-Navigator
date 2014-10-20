@@ -19,6 +19,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.hardcopy.arduinonavi.R;
 import com.hardcopy.arduinonavi.contents.NavigationInfo;
+import com.hardcopy.arduinonavi.utils.AppSettings;
 import com.hardcopy.arduinonavi.views.IFragmentListener;
 
 
@@ -126,8 +127,9 @@ public class GMapControl {
 
 				mGoogleMap.clear();
 				
-				drawDestination(latLng);
+				drawDestination(latLng, true);
 				
+				mUnitType = AppSettings.getUnitType();
 				StringBuilder sb = new StringBuilder();
 				sb.append(mNaviMode==NAVI_MODE_COMPASS?"compass":"direction");
 				sb.append(",");
@@ -165,13 +167,15 @@ public class GMapControl {
 			public void onMyLocationChange(Location loc) {
 				float zoomLevel = mCurrentZoom;
 				mCurrentLocation = loc;
+
+				mGoogleMap.clear();
 				
 				if(mDestinationLocation == null) {
 					mDestinationLocation = new Location(loc);	// Destination is not selected yet. Initialize destination
 					mNaviInfo.initDestLocation(mDestinationLocation);
 					// If there is pre-used destination, show it on map 
 					if(mNaviInfo.getDestLatitude() != 0 && mNaviInfo.getDestLongitude() != 0) {
-						drawDestination(new LatLng(mNaviInfo.getDestLatitude(), mNaviInfo.getDestLongitude()));
+						drawDestination(new LatLng(mNaviInfo.getDestLatitude(), mNaviInfo.getDestLongitude()), false);
 					}
 				} else {
 					mNaviInfo.setCurLocation(loc);
@@ -179,19 +183,28 @@ public class GMapControl {
 				
 				if(!mIsInitialized) {
 					zoomLevel = INITIAL_ZOOM_LEVEL;
-					mIsInitialized = true;
 				} else {
 					zoomLevel = 0;
 				}
 				
+
 				addMarkerOnMap(loc.getLatitude(), loc.getLongitude(), 
 						"I'm here", 		// title
 						loc.getLatitude() + ", " + loc.getLongitude(), 			// snippet
 						false,				// draggable
 						MARKER_DEFAULT, 	// marker
-						zoomLevel);			// 0 means keep current zoom level
+						zoomLevel, 			// 0 means keep current zoom level
+						!mIsInitialized);				// move camera only when it's first time
 				
+				if(mNaviInfo.getDestLatitude() == 0 && mNaviInfo.getDestLongitude() == 0) {
+					// Destination is not set. Do nothing
+				} else {
+					drawDestination(new LatLng(mNaviInfo.getDestLatitude(), mNaviInfo.getDestLongitude()), false);
+				}
 				
+				mIsInitialized = true;
+				
+				mUnitType = AppSettings.getUnitType();
 				StringBuilder sb = new StringBuilder();
 				sb.append(mNaviMode==NAVI_MODE_COMPASS?"compass":"direction");
 				sb.append(",");
@@ -214,7 +227,7 @@ public class GMapControl {
 		});
 	}
 	
-	private void drawDestination(LatLng latLng) {
+	private void drawDestination(LatLng latLng, boolean doCameraWork) {
 		if(mCurrentLocation != null) {
 			mGoogleMap.addPolyline(new PolylineOptions()
 					.add(new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude()), latLng)
@@ -225,7 +238,7 @@ public class GMapControl {
 		addMarkerOnMap(latLng.latitude, latLng.longitude, 
 				mContext.getResources().getString(R.string.title_destination), 
 				String.format("%.3f", latLng.latitude) + ", " + String.format("%.3f", latLng.latitude), 
-				true, MARKER_RED, mCurrentZoom);
+				true, MARKER_RED, mCurrentZoom, doCameraWork);
 	}
 	
 	
@@ -239,7 +252,7 @@ public class GMapControl {
 	}
 	
 	public void setUnitType(int ut) {
-		mUnitType = ut;
+		mUnitType = AppSettings.getUnitType();
 	}
 	
 	public LatLng convertPointToLatLng(Point point) {
@@ -266,7 +279,7 @@ public class GMapControl {
 	public static final float MARKER_RED = BitmapDescriptorFactory.HUE_RED;
 	public static final float MARKER_GREEN = BitmapDescriptorFactory.HUE_GREEN;
 	
-	public void addMarkerOnMap(double lat1, double long1, String title, String snippet, boolean draggable, float markerType, float zoomFactor) {
+	public void addMarkerOnMap(double lat1, double long1, String title, String snippet, boolean draggable, float markerType, float zoomFactor, boolean doCameraWork) {
 		float markerStyle = MARKER_DEFAULT;
 		if(markerType < 0 || markerType > 360) {
 			// use default marker
@@ -283,7 +296,7 @@ public class GMapControl {
 								.icon( BitmapDescriptorFactory.defaultMarker(markerStyle) )
 							);
 
-		if(zoomFactor < 2.0f || zoomFactor > 21.0f) {
+		if(zoomFactor < 2.0f || zoomFactor > 21.0f || !doCameraWork) {
 			// No camera animation
 		} else {
 			mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(ll, zoomFactor));		// zoom out ~ zoom in : 2.0f ~ 21.0f

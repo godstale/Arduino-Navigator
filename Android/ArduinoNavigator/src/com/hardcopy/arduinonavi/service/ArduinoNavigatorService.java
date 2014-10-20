@@ -338,9 +338,16 @@ public class ArduinoNavigatorService extends Service {
 				unitType = GMapControl.UNIT_TYPE_KMETERS;
 			}
 		} else if(unitType == GMapControl.UNIT_TYPE_FEET) {
-			if(distance > 5280) {
+			Logs.d("Distance in meter = "+distance);
+			distance *= 3.2808;
+			Logs.d("Distance in feet = "+distance);
+			if(distance > 5280) {		// convert in miles
 				distance = distance / 5280;		// I assumed that 1 Mile = 5280 Feet.
 				unitType = GMapControl.UNIT_TYPE_MILES;
+			} else {		// convert in feets
+				// Distance in feets could flow over 10 bit max value. So we divide this with 5.
+				// Receiver should multiply distance value if it's arriving in 'feet' type
+				distance /= 5; 
 			}
 		}
 		

@@ -134,12 +134,7 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 		mNaviInfo.setText(getResources().getString(R.string.title_destination) + ": ");
 		mNaviMode = (Button) findViewById(R.id.btn_mode);
 		mNaviMode.setOnClickListener(this);
-		int unitType = AppSettings.getUnitType();
-		if(unitType == GMapControl.UNIT_TYPE_METERS) {
-			mNaviMode.setText(getResources().getString(R.string.title_unit_meter));
-		} else {
-			mNaviMode.setText(getResources().getString(R.string.title_unit_feet));
-		}
+		showUnitTypeButton();
 		
 		mImageBT = (ImageView) findViewById(R.id.status_title);
 		mImageBT.setImageDrawable(getResources().getDrawable(android.R.drawable.presence_invisible));
@@ -265,11 +260,10 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 			int unitType = AppSettings.getUnitType();
 			if(unitType == GMapControl.UNIT_TYPE_METERS) {
 				AppSettings.setSettingsValue(AppSettings.SETTINGS_UNIT_TYPE, false, GMapControl.UNIT_TYPE_FEET, 0, null);
-				mNaviMode.setText(getResources().getString(R.string.title_unit_feet));
 			} else {
 				AppSettings.setSettingsValue(AppSettings.SETTINGS_UNIT_TYPE, false, GMapControl.UNIT_TYPE_METERS, 0, null);
-				mNaviMode.setText(getResources().getString(R.string.title_unit_meter));
 			}
+			showUnitTypeButton();
 			break;
 		}
 	}
@@ -392,6 +386,7 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 				strUnit = " km";
 			}
 		} else if(unitType == GMapControl.UNIT_TYPE_FEET) {
+			distance *= 3.2808;
 			if(distance > 5280) {
 				distance = distance / 5280;		// I assumed that 1 Mile = 5280 Feet.
 				unitType = GMapControl.UNIT_TYPE_MILES;
@@ -403,6 +398,15 @@ public class MainActivity extends FragmentActivity implements ActionBar.TabListe
 		mNaviInfo.append(strUnit);
 		mNaviInfo.append(", "+angle);
 		mNaviInfo.append("'");
+	}
+	
+	private void showUnitTypeButton() {
+		int unitType = AppSettings.getUnitType();
+		if(unitType == GMapControl.UNIT_TYPE_METERS) {
+			mNaviMode.setText(getResources().getString(R.string.title_unit_meter));
+		} else {
+			mNaviMode.setText(getResources().getString(R.string.title_unit_feet));
+		}
 	}
 	
 	

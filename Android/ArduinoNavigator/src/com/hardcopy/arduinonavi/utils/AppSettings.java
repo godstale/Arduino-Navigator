@@ -74,6 +74,7 @@ public class AppSettings {
 			editor.putInt(Constants.PREFERENCE_KEY_UNIT_TYPE, intValue);
 			editor.commit();
 			mUnitType = intValue;
+			Logs.d("Set distance unit type = "+intValue);
 			break;
 		case SETTINGS_NAVI_MODE:
 			editor.putInt(Constants.PREFERENCE_KEY_NAVI_MODE, intValue);

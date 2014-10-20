@@ -156,7 +156,7 @@ public class TransactionBuilder {
 			}
 			
 			mBuffer[2] |= (distance & 0x03ff) >> 7;		// set first 3 bit
-			mBuffer[3] |= (distance & 0x7f);		// set following 7 bit
+			mBuffer[3] |= (distance & 0x7f) << 1;		// set following 7 bit
 			
 			mBuffer[3] |= (angle & 0x01ff) >> 8;		// set first 1 bit
 			mBuffer[4] |= (angle & 0xff);		// set following 8 bit
@@ -182,14 +182,68 @@ public class TransactionBuilder {
 			// For debug. Comment out below lines if you want to see the packets
 			if(mBuffer.length > 0) {
 				StringBuilder sb = new StringBuilder();
-				sb.append("Message : ");
+				sb.append("Message : \n");
 				
 				for(int i=0; i<mBuffer.length; i++) {
-					sb.append(String.format("%02X, ", mBuffer[i]));
+					//sb.append(String.format("%02X, ", mBuffer[i]));
+					for(int j=0; j<8; j++) {
+						sb.append( ((mBuffer[i] >> (7-j)) & 0x01) == 0x00 ? 0 : 1 );
+					}
+					sb.append("\n");
 				}
 				
 				Log.d(TAG, " ");
 				Log.d(TAG, sb.toString());
+				
+				// Check validation of outgoing packet
+				int navMode = (mBuffer[2] & 0x80)>>7;
+				Log.d(TAG, "Mode : " + navMode);
+				String navUnit = "none";
+				switch(mBuffer[2] & 0x60){
+				case 0x00 :
+					navUnit = "meter";
+					break;
+				case 0x20 :
+					navUnit = "kilo meter";
+					break;
+				case 0x40 :
+					navUnit = "feet";
+					break;
+				case 0x60 :
+					navUnit = "mile";
+					break;
+				}
+				Log.d(TAG, "Mode : " + navUnit);
+				
+				String navDir = "none";
+				switch(mBuffer[2] & 0x18){
+				case 0x08 :
+					navDir = "right";
+					break;
+				case 0x18 :
+					navDir = "back";
+					break;
+				case 0x00 :
+					navDir = "left";
+					break;
+				case 0x10 :
+					navDir = "forward";
+					break;
+				}
+				Log.d(TAG, "Direction : " + navDir);
+				
+				int navDist = 0;
+				navDist+= (mBuffer[2] & 0x07) << 7;
+				navDist+= (mBuffer[3] & 0xfe) >> 1;
+				if(navUnit.contains("feet"))
+					navDist *= 5;
+				Log.d(TAG, "Distance : " + navDist);
+				
+				int navAng = 0;
+				navAng+= (mBuffer[3] & 0x01) << 8;
+				navAng+= (mBuffer[4] & 0xff);
+				Log.d(TAG, "Angle : " + navAng);
+				
 			}
 			
 			if(mState == STATE_SETTING_FINISHED) {
